@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Student Upload Test</title>
+  </head>
+  <body>
+    <h1>Student Upload Test</h1>
+    <input type="file" id="file" accept="application/pdf" />
+    <button id="upload-btn">Upload</button>
+
+    <script>
+      async function upload() {
+        const fileInput = document.getElementById("file");
+        const file = fileInput.files && fileInput.files[0];
+
+        if (!file) {
+          alert("Select a PDF first");
+          return;
+        }
+
+        // 1. Get signed URL
+        const uploadRes = await fetch("/api/generate-upload-url");
+        const uploadPayload = await uploadRes.json();
+
+        if (!uploadRes.ok || !uploadPayload?.success) throw new Error("Failed to generate upload URL");
+
+        const data = uploadPayload.data;
+
+        // 2. Upload to R2
+        const putRes = await fetch(data.uploadUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/pdf"
+          },
+          body: file
+        });
+
+        if (!putRes.ok) throw new Error("File upload failed");
+
+        // 3. Create job
+        const createRes = await fetch("/api/create-job", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            shopId: "shop1",
+            fileUrl: data.fileUrl,
+            printType: "duplex",
+            colorMode: "bw",
+            copies: 1,
+            pageRange: "all"
+          })
+        });
+
+        const createPayload = await createRes.json();
+
+        if (!createRes.ok || !createPayload?.success) throw new Error("Failed to create job");
+
+        alert("Job created!");
+      }
+
+      document.getElementById("upload-btn").addEventListener("click", () => {
+        upload().catch((err) => {
+          console.error(err);
+          alert(`Error: ${err.message}`);
+        });
+      });
+    </script>
+  </body>
+</html>
